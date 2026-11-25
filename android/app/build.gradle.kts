@@ -39,7 +39,7 @@ fun join(prefix: String, separator: String, branding: String): String {
 
 android {
     ndkVersion = "25.2.9519653"
-    compileSdk = 31
+    compileSdk = 34
     buildFeatures {
         buildConfig = true
     }
@@ -48,8 +48,11 @@ android {
         applicationId = "org.touchhle.android"
         if (!branding.isEmpty()) {
             applicationIdSuffix = branding.lowercase()
+        } else {
+            // Installs next to the official build (different signing key).
+            applicationIdSuffix = ".md3"
         }
-        resValue("string", "app_name", join("touchHLE", " ", branding))
+        resValue("string", "app_name", join("touchHLE", " ", branding.ifEmpty { "M3" }))
         buildConfigField("String", "APP_NAME", "\"${join("touchHLE", " ", branding)}\"")
         manifestPlaceholders["icon"] = join("@drawable/icon", "_", branding.lowercase())
         buildConfigField("int", "APP_ICON", join("R.drawable.icon", "_", branding.lowercase()))
@@ -175,6 +178,7 @@ cargoNdk {
 }
 
 dependencies {
+    implementation("com.google.android.material:material:1.12.0")
     implementation(fileTree("libs") {
         include("*.jar")
     })

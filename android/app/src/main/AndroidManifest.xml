@@ -68,16 +68,36 @@
          -->
 
         <activity
-            android:name="org.touchhle.android.MainActivity"
-            android:alwaysRetainTaskState="true"
-            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:name="org.touchhle.android.LauncherActivity"
             android:exported="true"
-            android:launchMode="singleInstance"
-            android:preferMinimalPostProcessing="true">
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.TouchHLE"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- "Open with" / "Share" an .ipa from a file manager or browser -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/x-itunes-ipa" />
+                <data android:mimeType="application/x-ios-app" />
+                <data android:mimeType="application/zip" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="org.touchhle.android.MainActivity"
+            android:process=":emu"
+            android:alwaysRetainTaskState="true"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.emu"
+            android:preferMinimalPostProcessing="true">
             <!-- Let Android know that we can handle some USB devices and should receive this event -->
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />

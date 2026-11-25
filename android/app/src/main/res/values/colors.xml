@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fallback palette (Android < 12); Material You colours replace it when available. -->
+<resources>
+    <color name="md_primary">#3557B7</color>
+    <color name="md_on_primary">#FFFFFF</color>
+    <color name="md_primary_container">#DBE1FF</color>
+    <color name="md_on_primary_container">#00174B</color>
+    <color name="md_secondary_container">#DDE1F9</color>
+    <color name="md_on_secondary_container">#161B2C</color>
+</resources>
