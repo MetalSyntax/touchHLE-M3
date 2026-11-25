@@ -1,3 +1,45 @@
+# touchHLE M3 — unofficial Android edition
+
+This is an **unofficial fork** of [touchHLE](https://github.com/touchHLE/touchHLE), the high-level emulator for iPhone OS apps created by [hikari_no_yume](https://hikari.noyu.me/) and developed with its contributors. All of the emulation (the Rust core, the ARM CPU via [dynarmic](https://github.com/merryhime/dynarmic), and the iPhone OS framework implementations) is their work. This edition is maintained by [MetalSyntax](https://github.com/MetalSyntax) and is not affiliated with or endorsed by the touchHLE project.
+
+**Please do not report bugs of this edition to the upstream touchHLE project.** Use this fork's issues instead. Upstream does not accept AI-assisted contributions; this fork's changes were developed with AI assistance and are not intended to be submitted upstream.
+
+License: same as upstream, [Mozilla Public License 2.0](LICENSE). Third-party components keep their own licenses.
+
+## What this edition adds
+
+### Android front-end
+
+- Material 3 launcher (dynamic color, light/dark), in English, Spanish and Portuguese.
+- Library with real app icons and names read from the IPA (iTunesArtwork, Apple CgBI PNG icons, binary Info.plist), list or grid view, sorting by name, recently played, recently added or size, IPA import (also via "Open with" from other apps), and delete.
+- Per-game settings: on-screen FPS counter, screen filters (scanlines, LCD grid, CRT overlay), sharp or smooth scaling, internal resolution 1×–4×, FPS limit (15–120 or unlimited), frame skip, orientation, emulated device (iPhone/iPad), game language, and advanced toggles (network access, force composition, ignore GL errors, controller stick as tilt).
+- In-game pause menu that really pauses emulation: resume, screenshot (saved to `Pictures/touchHLE`), save copy, toggle FPS, cycle filter, exit to library. The back gesture opens the menu; back again returns to the library.
+- "Save copies": backups of a game's save data (its sandbox folder). They can be manual, locked or automatic (made before every launch; the last 3 are kept). You can restore, lock, export and delete them. Restoring keeps the current data as an automatic copy first. **These are not emulator save states**: a full snapshot of CPU, memory and GPU state isn't feasible in an HLE emulator. Save copies only back up the files the game saved.
+- Readable crash dialog with copy/share of the log, app shortcuts for recently played games, and an About screen with credits.
+
+### Emulator core (Rust)
+
+- Compatibility fixes that make *Inotia 2: A Wanderer of Luone* playable: missing Foundation, CoreFoundation and OpenGL ES functions (e.g. `+[NSSet setWithObjects:count:]`, NSCalendar/NSDateComponents, CFRunLoopTimer functions, `glGetFixedv`, generic `-[NSObject valueForKey:]`).
+- Bug fixes: `CFRunLoopTimerCreate` now follows the CoreFoundation Create rule (it was a use-after-free). Free disk space is reported as 1,000,000,000 bytes instead of exactly 2^30, because some games mask that value, read 0 and show "not enough space".
+- New command-line options: `--nearest-filter` and `--frameskip=N`.
+
+## Building
+
+The build steps are the same as upstream; see `dev-docs/building.md`. For Android:
+
+- Use NDK 25.2.9519653. NDK 27 or newer fails to build the bundled SDL.
+- With CMake 4, set the environment variable `CMAKE_POLICY_VERSION_MINIMUM=3.5`.
+
+## Installing side by side
+
+The Android app uses the package `org.touchhle.android.md3` and is named "touchHLE M3". It installs alongside the official touchHLE app and uses its own data folder: `Android/data/org.touchhle.android.md3/files`. The Android notes further down refer to the official app's `org.touchhle.android` folder.
+
+## Credits
+
+touchHLE © hikari_no_yume and contributors. Android edition by MetalSyntax.
+
+---
+
 # touchHLE: high-level emulator for early iOS apps
 
 **touchHLE** is a high-level emulator for early iOS apps. It runs on modern desktop operating systems and Android, and is written in Rust.
