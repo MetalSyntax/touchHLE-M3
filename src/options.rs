@@ -229,6 +229,15 @@ impl Options {
             self.popup_errors = false;
         } else if arg == "--print-fps" {
             self.print_fps = true;
+        } else if let Some(value) = arg.strip_prefix("--frameskip=") {
+            let n: u32 = value
+                .parse()
+                .ok()
+                .filter(|&n| n <= 10)
+                .ok_or_else(|| "Invalid value for --frameskip= (0-10)".to_string())?;
+            crate::gles::present::FRAMESKIP.store(n, std::sync::atomic::Ordering::Relaxed);
+        } else if arg == "--nearest-filter" {
+            crate::gles::present::NEAREST_FILTER.store(true, std::sync::atomic::Ordering::Relaxed);
         } else if let Some(value) = arg.strip_prefix("--fps-limit=") {
             if value == "off" {
                 self.fps_limit = None;

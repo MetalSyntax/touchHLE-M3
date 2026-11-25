@@ -177,6 +177,16 @@ pub fn remove_audio_queue(env: &mut Environment, run_loop: id, queue: AudioQueue
     queues.remove(queue_idx);
 }
 
+/// For `CFRunLoopRemoveTimer`: detach a still-valid timer from this run loop
+/// (it can be added again later). No-op if the timer isn't in this run loop.
+pub fn detach_timer(env: &mut Environment, run_loop: id, timer: id) {
+    if !env.objc.borrow::<NSRunLoopHostObject>(run_loop).timers.contains(&timer) {
+        return;
+    }
+    remove_timer(env, run_loop, timer);
+    ns_timer::clear_run_loop(env, timer);
+}
+
 /// For use by NSTimer so it can remove itself once it's invalidated.
 pub(super) fn remove_timer(env: &mut Environment, run_loop: id, timer: id) {
     log_dbg!("Removing timer {:?} from run loop {:?}", timer, run_loop,);
@@ -301,6 +311,11 @@ pub fn run_run_loop_single_iteration(env: &mut Environment, run_loop: id) {
     run_run_loop(env, run_loop, /* single_iteration: */ true, None)
 }
 
+/// Set by the Android front-end's pause menu. All guest threads are
+/// coroutines on the host thread running the main run loop, so blocking it
+/// here freezes the whole app (audio already queued just plays out).
+pub static PAUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub fn run_run_loop(
     env: &mut Environment,
     run_loop: id,
@@ -336,6 +351,12 @@ pub fn run_run_loop(
     let is_main_run_loop = env.current_thread == 0;
 
     loop {
+        if is_main_run_loop {
+            while PAUSED.load(std::sync::atomic::Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(30));
+            }
+        }
+
         let mut sleep_until = None;
 
         // Commit implicit CATransactions

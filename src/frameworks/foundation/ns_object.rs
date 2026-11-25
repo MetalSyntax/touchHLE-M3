@@ -248,6 +248,43 @@ forUndefinedKey:(id)key { // NSString*
     log_once!("TODO: NSObject didChangeValueForKey:");
 }
 
+// Key-value coding, accessor-method lookup only.
+// ponytail: no ivar fallback (_key/key) and no setter side; add if an app needs it.
+- (id)valueForKey:(id)key { // NSString *
+    let name = to_rust_string(env, key).to_string();
+    let sel = env.objc.lookup_selector(&name)
+        .filter(|&sel| env.objc.object_has_method(&env.mem, this, sel));
+    let Some(sel) = sel else {
+        let class: Class = msg![env; this class];
+        panic!(
+            "[{} valueForKey:{:?}]: no accessor method (valueForUndefinedKey: is unimplemented)",
+            env.objc.get_class_name(class), name
+        );
+    };
+    // KVC boxes scalar results. Only a host-side list of known scalar getters
+    // is used, since return types of guest methods aren't checked here.
+    match name.as_str() {
+        "intValue" | "integerValue" | "length" | "count" | "hash" | "unsignedIntValue"
+        | "unsignedIntegerValue" | "longValue" => {
+            let v: i32 = msg_send_no_type_checking(env, (this, sel));
+            msg_class![env; NSNumber numberWithInt:v]
+        }
+        "floatValue" => {
+            let v: f32 = msg_send_no_type_checking(env, (this, sel));
+            msg_class![env; NSNumber numberWithFloat:v]
+        }
+        "doubleValue" => {
+            let v: f64 = msg_send_no_type_checking(env, (this, sel));
+            msg_class![env; NSNumber numberWithDouble:v]
+        }
+        "boolValue" => {
+            let v: bool = msg_send_no_type_checking(env, (this, sel));
+            msg_class![env; NSNumber numberWithBool:v]
+        }
+        _ => msg_send_no_type_checking(env, (this, sel)),
+    }
+}
+
 - (bool)respondsToSelector:(SEL)selector {
     env.objc.object_has_method(&env.mem, this, selector)
 }

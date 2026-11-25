@@ -14,9 +14,9 @@ use super::cf_string::CFStringRef;
 use super::cf_url::CFURLRef;
 use super::CFTypeRef;
 use crate::dyld::{export_c_func, ConstantExports, FunctionExports, HostConstant};
-use crate::frameworks::foundation::ns_bundle::NSBundleHostObject;
+use crate::frameworks::foundation::ns_bundle::{self, NSBundleHostObject};
 use crate::frameworks::foundation::{ns_array, ns_string, NSUInteger};
-use crate::objc::{id, msg, msg_class, retain};
+use crate::objc::{id, msg, msg_class, nil, release, retain};
 use crate::Environment;
 
 const kCFBundleVersionKey: &str = "CFBundleVersion";
@@ -107,6 +107,31 @@ fn CFBundleCopyResourceURL(
     msg![env; url copy]
 }
 
+fn CFBundleCopyResourceURLForLocalization(
+    env: &mut Environment,
+    bundle: CFBundleRef,
+    resource_name: CFStringRef,
+    resource_type: CFStringRef,
+    sub_dir_name: CFStringRef,
+    localization_name: CFStringRef,
+) -> CFURLRef {
+    if localization_name != nil {
+        let loc = ns_string::to_rust_string(env, localization_name).to_string();
+        let lproj = ns_string::from_rust_string(env, format!("{loc}.lproj"));
+        let path = ns_bundle::path_for_resource_helper(
+            env, bundle, resource_name, lproj, sub_dir_name, resource_type,
+        );
+        release(env, lproj);
+        if path != nil {
+            // "Copy" rule: caller owns the result.
+            let url: CFURLRef = msg_class![env; NSURL fileURLWithPath:path];
+            return retain(env, url);
+        }
+    }
+    // Not found in that localization: same lookup as the unlocalized variant.
+    CFBundleCopyResourceURL(env, bundle, resource_name, resource_type, sub_dir_name)
+}
+
 pub fn CFBundleCopyBundleLocalizations(env: &mut Environment, bundle: CFBundleRef) -> CFArrayRef {
     let bundle_localizations = env
         .objc
@@ -190,6 +215,7 @@ fn CFBundleCopyLocalizedString(
 
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(CFBundleGetMainBundle()),
+    export_c_func!(CFBundleCopyResourceURLForLocalization(_, _, _, _, _)),
     export_c_func!(CFBundleGetInfoDictionary(_)),
     export_c_func!(CFBundleGetValueForInfoDictionaryKey(_, _)),
     export_c_func!(CFBundleGetVersionNumber(_)),

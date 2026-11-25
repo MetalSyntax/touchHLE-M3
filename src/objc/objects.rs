@@ -286,6 +286,11 @@ impl super::ObjC {
         }
     }
 
+    /// Whether `object` is a live object known to the runtime.
+    pub fn object_exists(&self, object: id) -> bool {
+        self.objects.contains_key(&object)
+    }
+
     /// Getting a refcount of an object.
     /// While Apple's docs advise to not relay on the returned value,
     /// some games (like "Cut the Rope") does call `retainCount`.

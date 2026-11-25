@@ -735,6 +735,27 @@ pub const CLASSES: ClassExports = objc_classes! {
                      encoding:NSUTF8StringEncoding]
 }
 
+- (bool)getBytes:(MutPtr<u8>)buffer
+       maxLength:(NSUInteger)max_length
+      usedLength:(MutPtr<NSUInteger>)used_length
+        encoding:(NSStringEncoding)encoding
+         options:(NSUInteger)_options
+           range:(NSRange)range
+  remainingRange:(MutPtr<NSRange>)remaining_range {
+    let (location, length) = (range.location, range.length);
+    let (bytes, consumed) = get_bytes_in_range(env, this, buffer, max_length, encoding, range);
+    if !used_length.is_null() {
+        env.mem.write(used_length, bytes);
+    }
+    if !remaining_range.is_null() {
+        env.mem.write(remaining_range, NSRange {
+            location: location + consumed,
+            length: length - consumed,
+        });
+    }
+    consumed > 0 || length == 0
+}
+
 - (bool)getCString:(MutPtr<u8>)buffer
          maxLength:(NSUInteger)buffer_size
           encoding:(NSStringEncoding)encoding {
@@ -2025,6 +2046,44 @@ mod ns_string_tests {
 ///
 /// Right now this helper is used for `NSString getCString:maxLength:encoding:`
 /// method, `CFStringGetPascalString` and `CFStringGetBytes` functions.
+/// Helper for `getBytes:maxLength:usedLength:encoding:options:range:remainingRange:`.
+/// Converts whole characters from `range` (UTF-16 units) until `max_length`
+/// bytes are used. A null `buffer` only measures. Returns
+/// (bytes written, UTF-16 units consumed).
+fn get_bytes_in_range(
+    env: &mut Environment,
+    str: id, // NSString *
+    buffer: MutPtr<u8>,
+    max_length: NSUInteger,
+    encoding: NSStringEncoding,
+    range: NSRange,
+) -> (NSUInteger, NSUInteger) {
+    // TODO: other encodings (non-ASCII is lossily replaced with '?' below)
+    let utf8 = encoding == NSUTF8StringEncoding;
+    assert!(
+        utf8 || encoding == NSASCIIStringEncoding
+            || encoding == NSMacOSRomanStringEncoding
+            || encoding == NSISOLatin1StringEncoding
+    );
+    let sub: id = msg![env; str substringWithRange:range];
+    let sub = to_rust_string(env, sub).to_string();
+    let mut out = Vec::new();
+    let mut consumed: NSUInteger = 0;
+    for c in sub.chars() {
+        let mut tmp = [0u8; 4];
+        let encoded: &[u8] = if utf8 || c.is_ascii() { c.encode_utf8(&mut tmp).as_bytes() } else { b"?" };
+        if out.len() + encoded.len() > max_length as usize {
+            break;
+        }
+        out.extend_from_slice(encoded);
+        consumed += c.len_utf16() as NSUInteger;
+    }
+    if !buffer.is_null() && !out.is_empty() {
+        env.mem.bytes_at_mut(buffer, out.len() as NSUInteger).copy_from_slice(&out);
+    }
+    (out.len() as NSUInteger, consumed)
+}
+
 pub fn get_bytes_buffer_inner(
     env: &mut Environment,
     str: id, // NSString *

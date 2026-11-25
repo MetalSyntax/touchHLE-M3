@@ -67,8 +67,8 @@ pub use touchHLE_version::*;
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub extern "C" fn SDL_main(
-    _argc: std::ffi::c_int,
-    _argv: *const *const std::ffi::c_char,
+    argc: std::ffi::c_int,
+    argv: *const *const std::ffi::c_char,
 ) -> std::ffi::c_int {
     // Rust's default panic handler prints to stderr, but on Android that just
     // gets discarded, so we set a custom hook to make debugging easier.
@@ -87,12 +87,42 @@ pub extern "C" fn SDL_main(
         }
     }));
 
-    // Empty args: brings up app picker.
-    match main([String::new()].into_iter()) {
+    // argv[0] is "app_process"; the rest comes from MainActivity's launch
+    // intent (set by the launcher). Only argv[0]: brings up the app picker.
+    let args: Vec<String> = (0..argc.max(0) as usize)
+        .map(|i| unsafe { std::ffi::CStr::from_ptr(*argv.add(i)) })
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect();
+    let args = if args.is_empty() { vec![String::new()] } else { args };
+    match main(args.into_iter()) {
         Ok(_) => echo!("touchHLE finished"),
         Err(e) => echo!("touchHLE errored: {e:?}"),
     }
     0
+}
+
+/// For the Android on-screen FPS counter (`MainActivity.nativeGetFps()`).
+/// Only updated while `--print-fps` is on.
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "C" fn Java_org_touchhle_android_MainActivity_nativeGetFps(
+    _env: *mut std::ffi::c_void,
+    _class: *mut std::ffi::c_void,
+) -> f32 {
+    f32::from_bits(gles::present::LAST_FPS.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Pause/resume emulation from the Android pause menu
+/// (`MainActivity.nativeSetPaused(boolean)`).
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "C" fn Java_org_touchhle_android_MainActivity_nativeSetPaused(
+    _env: *mut std::ffi::c_void,
+    _class: *mut std::ffi::c_void,
+    paused: u8, // jboolean
+) {
+    frameworks::foundation::ns_run_loop::PAUSED
+        .store(paused != 0, std::sync::atomic::Ordering::Relaxed);
 }
 
 const USAGE: &str = "\

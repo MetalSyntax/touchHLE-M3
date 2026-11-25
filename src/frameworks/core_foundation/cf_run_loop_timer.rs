@@ -16,7 +16,7 @@ use crate::frameworks::core_foundation::time::{CFAbsoluteTime, CFTimeInterval};
 use crate::frameworks::core_foundation::CFIndex;
 use crate::mem::{MutPtr, MutVoidPtr, SafeRead};
 use crate::objc::{
-    id, msg, msg_class, nil, objc_classes, Class, ClassExports, HostObject, NSZonePtr,
+    id, msg, msg_class, nil, objc_classes, retain, Class, ClassExports, HostObject, NSZonePtr,
 };
 use crate::Environment;
 
@@ -74,11 +74,13 @@ fn CFRunLoopTimerCreate(
     let selector = env.objc.lookup_selector("timerFireMethod:").unwrap();
 
     let repeats = interval > 0.0;
-    msg_class![env; NSTimer timerWithTimeInterval:interval
-                                           target:target
-                                         selector:selector
-                                         userInfo:nil
-                                          repeats:repeats]
+    let timer: id = msg_class![env; NSTimer timerWithTimeInterval:interval
+                                                   target:target
+                                                 selector:selector
+                                                 userInfo:nil
+                                                  repeats:repeats];
+    // "Create" rule: the caller owns the timer, but the above is autoreleased.
+    retain(env, timer)
 }
 
 fn CFRunLoopAddTimer(
@@ -96,6 +98,32 @@ fn CFRunLoopAddTimer(
     () = msg![env; run_loop addTimer:timer forMode:mode];
 }
 
+fn CFRunLoopTimerSetNextFireDate(
+    env: &mut Environment,
+    timer: CFRunLoopTimerRef,
+    fire_date: CFAbsoluteTime,
+) {
+    let delay = fire_date - crate::frameworks::core_foundation::time::CFAbsoluteTimeGetCurrent(env);
+    let host = env.objc.borrow_mut::<crate::frameworks::foundation::ns_timer::NSTimerHostObject>(timer);
+    // An invalidated timer stays invalidated (due_by == None).
+    if host.due_by.is_some() {
+        host.due_by = Some(std::time::Instant::now() + std::time::Duration::from_secs_f64(delay.max(0.0)));
+    }
+}
+
+fn CFRunLoopRemoveTimer(
+    env: &mut Environment,
+    run_loop: CFRunLoopRef,
+    timer: CFRunLoopTimerRef,
+    _mode: CFRunLoopMode, // only one mode is supported, see CFRunLoopAddTimer
+) {
+    if env.objc.terminating && !env.objc.object_exists(timer) {
+        log!("Warning: ignoring CFRunLoopRemoveTimer on deallocated timer {:?} during app termination", timer);
+        return;
+    }
+    crate::frameworks::foundation::ns_run_loop::detach_timer(env, run_loop, timer);
+}
+
 fn CFRunLoopTimerInvalidate(env: &mut Environment, timer: CFRunLoopTimerRef) {
     () = msg![env; timer invalidate];
 }
@@ -103,7 +131,9 @@ fn CFRunLoopTimerInvalidate(env: &mut Environment, timer: CFRunLoopTimerRef) {
 pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(CFRunLoopTimerCreate(_, _, _, _, _, _, _)),
     export_c_func!(CFRunLoopAddTimer(_, _, _)),
+    export_c_func!(CFRunLoopRemoveTimer(_, _, _)),
     export_c_func!(CFRunLoopTimerInvalidate(_)),
+    export_c_func!(CFRunLoopTimerSetNextFireDate(_, _)),
 ];
 
 /// Belongs to _touchHLE_CFTimerTarget

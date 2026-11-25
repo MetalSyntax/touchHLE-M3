@@ -195,6 +195,19 @@ fn glGetFloatv(env: &mut Environment, pname: GLenum, params: MutPtr<GLfloat>) {
         unsafe { gles.GetFloatv(pname, params) };
     });
 }
+fn glGetFixedv(env: &mut Environment, pname: GLenum, params: MutPtr<GLfixed>) {
+    assert_ne!(gles11::NUM_COMPRESSED_TEXTURE_FORMATS, pname);
+    assert_ne!(gles11::COMPRESSED_TEXTURE_FORMATS, pname);
+    // Query as float into a NaN-filled scratch buffer: entries the driver
+    // didn't touch stay NaN, so only the real values get written back.
+    let mut floats = [f32::NAN; 16];
+    with_ctx_and_mem(env, |gles, _mem| {
+        unsafe { gles.GetFloatv(pname, floats.as_mut_ptr()) };
+    });
+    for (i, &f) in floats.iter().take_while(|f| !f.is_nan()).enumerate() {
+        env.mem.write(params + i as GuestUSize, (f * 65536.0) as GLfixed);
+    }
+}
 fn glGetIntegerv(env: &mut Environment, pname: GLenum, params: MutPtr<GLint>) {
     with_ctx_and_mem(env, |gles, mem| {
         match pname {
@@ -1482,6 +1495,7 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(glDisableClientState(_)),
     export_c_func!(glGetBooleanv(_, _)),
     export_c_func!(glGetFloatv(_, _)),
+    export_c_func!(glGetFixedv(_, _)),
     export_c_func!(glGetIntegerv(_, _)),
     export_c_func!(glGetPointerv(_, _)),
     export_c_func!(glGetTexEnviv(_, _, _)),

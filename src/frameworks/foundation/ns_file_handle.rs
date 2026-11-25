@@ -104,8 +104,9 @@ pub const CLASSES: ClassExports = objc_classes! {
     match posix_io::read(env, fd, buffer, length) {
         -1 => panic!("readDataOfLength: failed"),
         bytes_read => {
-            assert_eq!(length, bytes_read.try_into().unwrap());
-            msg_class![env; NSData dataWithBytesNoCopy:buffer length:length]
+            // A short read (e.g. at EOF) is valid: return only what was read.
+            let bytes_read: NSUInteger = bytes_read.try_into().unwrap();
+            msg_class![env; NSData dataWithBytesNoCopy:buffer length:bytes_read]
         }
     }
 }
@@ -130,6 +131,13 @@ pub const CLASSES: ClassExports = objc_classes! {
     let length: NSUInteger = msg![env; data length];
     if posix_io::write(env, fd, bytes, length) == -1 {
         panic!("writeData: failed")
+    }
+}
+
+- (())synchronizeFile {
+    let fd = env.objc.borrow::<NSFileHandleHostObject>(this).fd;
+    if posix_io::fsync(env, fd) == -1 {
+        log!("Warning: synchronizeFile failed for fd {}", fd);
     }
 }
 

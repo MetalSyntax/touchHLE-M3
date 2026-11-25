@@ -256,6 +256,14 @@ Other options:
     --print-fps
         Logs the current framerate (FPS) to the console once per second.
 
+    --frameskip=...
+        Only shows 1 of every N+1 frames the app draws (0-10, default 0).
+        This saves the cost of presenting frames, not of rendering them.
+
+    --nearest-filter
+        Scales the final image with nearest-neighbour filtering (sharp pixels)
+        instead of bilinear filtering (smooth).
+
     --fps-limit=...
         Modify or disable the framerate (FPS) limit.
 

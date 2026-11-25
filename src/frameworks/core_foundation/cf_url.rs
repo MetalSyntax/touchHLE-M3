@@ -174,6 +174,36 @@ fn CFURLCreateCopyDeletingLastPathComponent(
     msg![env; new_url copy]
 }
 
+/// Only the data part is supported; `properties` is always set to NULL.
+fn CFURLCreateDataAndPropertiesFromResource(
+    env: &mut Environment,
+    allocator: CFAllocatorRef,
+    url: CFURLRef,
+    resource_data: MutPtr<id>,       // CFDataRef *
+    properties: MutPtr<id>,          // CFDictionaryRef *
+    _desired_properties: id,         // CFArrayRef
+    error_code: MutPtr<i32>,         // SInt32 *
+) -> bool {
+    assert_eq!(allocator, kCFAllocatorDefault); // unimplemented
+    let data: id = if url.is_null() { crate::objc::nil } else {
+        msg_class![env; NSData dataWithContentsOfURL:url]
+    };
+    let ok = !data.is_null();
+    if !resource_data.is_null() {
+        // "Create" rule: caller owns the data.
+        let data = if ok { crate::objc::retain(env, data) } else { data };
+        env.mem.write(resource_data, data);
+    }
+    if !properties.is_null() {
+        env.mem.write(properties, crate::objc::nil);
+    }
+    if !error_code.is_null() {
+        // kCFURLUnknownError (-10) is close enough for "couldn't read".
+        env.mem.write(error_code, if ok { 0 } else { -10 });
+    }
+    ok
+}
+
 fn CFURLHasDirectoryPath(env: &mut Environment, url: CFURLRef) -> bool {
     assert!(!url.is_null());
 
@@ -205,4 +235,5 @@ pub const FUNCTIONS: FunctionExports = &[
     export_c_func!(CFURLCreateCopyAppendingPathComponent(_, _, _, _)),
     export_c_func!(CFURLCreateCopyDeletingLastPathComponent(_, _)),
     export_c_func!(CFURLHasDirectoryPath(_)),
+    export_c_func!(CFURLCreateDataAndPropertiesFromResource(_, _, _, _, _, _)),
 ];

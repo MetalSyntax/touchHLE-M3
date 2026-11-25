@@ -11,7 +11,7 @@ use super::ns_enumerator::{fast_enumeration_helper, NSFastEnumerationState};
 use super::NSUInteger;
 use crate::abi::DotDotDot;
 use crate::environment::Environment;
-use crate::mem::MutPtr;
+use crate::mem::{ConstPtr, MutPtr};
 use crate::objc::{
     autorelease, id, msg, msg_class, nil, objc_classes, retain, ClassExports, HostObject, NSZonePtr,
 };
@@ -64,6 +64,13 @@ pub const CLASSES: ClassExports = objc_classes! {
     assert!(this == env.objc.get_known_class("NSSet", &mut env.mem));
     let new: id = msg![env; this alloc];
     env.objc.borrow_mut::<SetHostObject>(new).dict = set_from_objects(env, first_obj, args);
+    autorelease(env, new)
+}
+
++ (id)setWithObjects:(ConstPtr<id>)objects count:(NSUInteger)count {
+    // Works for NSMutableSet too: both private subclasses use SetHostObject.
+    let new: id = msg![env; this alloc];
+    env.objc.borrow_mut::<SetHostObject>(new).dict = set_from_ptr(env, objects, count);
     autorelease(env, new)
 }
 
@@ -341,6 +348,17 @@ fn set_from_objects(env: &mut Environment, first_obj: id, args: DotDotDot) -> Di
             break;
         }
         dict.insert(env, next_arg, null, /* copy_key: */ false);
+    }
+    dict
+}
+
+/// Helper for `setWithObjects:count:`.
+fn set_from_ptr(env: &mut Environment, objects: ConstPtr<id>, count: NSUInteger) -> DictionaryHostObject {
+    let null: id = msg_class![env; NSNull null];
+    let mut dict = <DictionaryHostObject as Default>::default();
+    for i in 0..count {
+        let obj: id = env.mem.read(objects + i);
+        dict.insert(env, obj, null, /* copy_key: */ false);
     }
     dict
 }

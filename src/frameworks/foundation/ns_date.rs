@@ -6,7 +6,7 @@
 //! `NSDate`.
 
 use super::ns_string::{from_rust_ordering, from_rust_string};
-use super::{NSComparisonResult, NSTimeInterval};
+use super::{NSComparisonResult, NSInteger, NSTimeInterval, NSUInteger};
 use crate::frameworks::core_foundation::time::{
     apple_epoch, CFAbsoluteTimeGetGregorianDate, SECS_FROM_UNIX_TO_APPLE_EPOCHS,
 };
@@ -227,4 +227,56 @@ pub const CLASSES: ClassExports = objc_classes! {
 
 @end
 
+// Minimal Gregorian calendar: only components:fromDate:, in the same time
+// zone handling as CFAbsoluteTimeGetGregorianDate (i.e. GMT for now).
+@implementation NSCalendar: NSObject
+
++ (id)currentCalendar {
+    let new: id = msg![env; this new];
+    autorelease(env, new)
+}
+
+- (id)components:(NSUInteger)_unit_flags fromDate:(id)date {
+    // All fields are filled regardless of the requested units; reading a
+    // unit that wasn't requested is undefined behaviour on iOS anyway.
+    let ti: NSTimeInterval = msg![env; date timeIntervalSinceReferenceDate];
+    let greg = CFAbsoluteTimeGetGregorianDate(env, ti, nil);
+    let new: id = msg_class![env; NSDateComponents new];
+    env.objc.borrow_mut::<NSDateComponentsHostObject>(new).date = Some(greg);
+    autorelease(env, new)
+}
+
+@end
+
+@implementation NSDateComponents: NSObject
+
++ (id)allocWithZone:(NSZonePtr)_zone {
+    let host_object = Box::<NSDateComponentsHostObject>::default();
+    env.objc.alloc_object(this, host_object, &mut env.mem)
+}
+
+- (NSInteger)year { components(env, this).map_or(NSUndefinedDateComponent, |d| d.year) }
+- (NSInteger)month { components(env, this).map_or(NSUndefinedDateComponent, |d| d.month.into()) }
+- (NSInteger)day { components(env, this).map_or(NSUndefinedDateComponent, |d| d.day.into()) }
+- (NSInteger)hour { components(env, this).map_or(NSUndefinedDateComponent, |d| d.hours.into()) }
+- (NSInteger)minute { components(env, this).map_or(NSUndefinedDateComponent, |d| d.minutes.into()) }
+- (NSInteger)second { components(env, this).map_or(NSUndefinedDateComponent, |d| d.seconds as NSInteger) }
+
+@end
+
 };
+
+const NSUndefinedDateComponent: NSInteger = 0x7fffffff; // NSIntegerMax
+
+#[derive(Default)]
+struct NSDateComponentsHostObject {
+    date: Option<crate::frameworks::core_foundation::time::CFGregorianDate>,
+}
+impl HostObject for NSDateComponentsHostObject {}
+
+fn components(
+    env: &mut crate::Environment,
+    this: id,
+) -> Option<crate::frameworks::core_foundation::time::CFGregorianDate> {
+    env.objc.borrow::<NSDateComponentsHostObject>(this).date
+}

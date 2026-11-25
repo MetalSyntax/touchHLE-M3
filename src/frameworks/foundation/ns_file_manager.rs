@@ -408,6 +408,11 @@ pub const CLASSES: ClassExports = objc_classes! {
     file_attributes_common(env, guest_path)
 }
 
+// Deprecated pre-iPhone OS 2.0 name for the method below.
+- (id)fileSystemAttributesAtPath:(id)path { // NSString *
+    msg![env; this attributesOfFileSystemForPath:path error:(MutPtr::<id>::null())]
+}
+
 - (id)attributesOfFileSystemForPath:(id)_path
                               error:(MutPtr<id>)error {
     // TODO: other attributes
@@ -417,10 +422,12 @@ pub const CLASSES: ClassExports = objc_classes! {
 
     let dict = msg_class![env; NSMutableDictionary new];
 
-    // Reporting 1 Gb of free space should be enough
+    // Reporting ~1 GB of free space should be enough.
+    // Not exactly 2^30: Inotia 2 does `(int)(free & 0x8FFFFFFF)`, which turns
+    // 0x40000000 into 0 and makes the game think the device is full.
     // TODO: unify with `statfs`
     // TODO: account for path
-    let size: u64 = 1024 * 1024 * 1024;
+    let size: u64 = 1_000_000_000;
     let size_num: id = msg_class![env; NSNumber numberWithUnsignedLongLong:size];
 
     let fs_free_size_key = get_static_str(env, NSFileSystemFreeSize);

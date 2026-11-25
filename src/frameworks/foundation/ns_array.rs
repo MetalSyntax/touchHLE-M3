@@ -185,6 +185,23 @@ pub const CLASSES: ClassExports = objc_classes! {
     msg![env; this objectAtIndex:(size - 1)]
 }
 
+// Key-value coding: an array of each element's value for `key`, with NSNull
+// standing in for nil. (The "@count"-style collection operators aren't
+// supported.)
+- (id)valueForKey:(id)key { // NSString *
+    let count: NSUInteger = msg![env; this count];
+    let null: id = msg_class![env; NSNull null];
+    let mut values = Vec::with_capacity(count as usize);
+    for i in 0..count {
+        let obj: id = msg![env; this objectAtIndex:i];
+        let value: id = msg![env; obj valueForKey:key];
+        let value = if value == nil { null } else { value };
+        values.push(retain(env, value));
+    }
+    let array = from_vec(env, values);
+    autorelease(env, array)
+}
+
 - (id)componentsJoinedByString:(id)str { // NSString *
     let res: id = msg_class![env; NSMutableString new];
     let count: NSUInteger = msg![env; this count];

@@ -39,6 +39,14 @@ pub const CLASSES: ClassExports = objc_classes! {
     autorelease(env, new)
 }
 
++ (id)timeZoneWithAbbreviation:(id)abbreviation { // NSString *
+    // All zones behave as GMT for now, so the abbreviation is just the name.
+    if abbreviation == nil {
+        return nil;
+    }
+    msg![env; this timeZoneWithName:abbreviation]
+}
+
 + (id)localTimeZone {
     // According to docs, `localTimeZone` is not cached in contrast to
     // `systemTimeZone`

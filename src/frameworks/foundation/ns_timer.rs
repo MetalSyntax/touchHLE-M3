@@ -15,7 +15,7 @@ use crate::objc::{
 use crate::Environment;
 use std::time::{Duration, Instant};
 
-struct NSTimerHostObject {
+pub(crate) struct NSTimerHostObject {
     ns_interval: NSTimeInterval,
     /// Copy of `ns_interval` in Rust's type for time intervals. Keep in sync!
     rust_interval: Duration,
@@ -25,7 +25,7 @@ struct NSTimerHostObject {
     /// Strong reference
     user_info: id,
     repeats: bool,
-    due_by: Option<Instant>,
+    pub(crate) due_by: Option<Instant>,
     /// If the timer is currently running its callback, this is set so that the
     /// re-entering the run loop from inside the callback doesn't cause an
     /// infinite loop.
@@ -171,6 +171,10 @@ pub(super) fn set_run_loop(env: &mut Environment, timer: id, run_loop: id) {
     let host_object = env.objc.borrow_mut::<NSTimerHostObject>(timer);
     assert!(host_object.run_loop == nil); // TODO: what do we do here?
     host_object.run_loop = run_loop;
+}
+
+pub(super) fn clear_run_loop(env: &mut Environment, timer: id) {
+    env.objc.borrow_mut::<NSTimerHostObject>(timer).run_loop = nil;
 }
 
 /// For use by `NSRunLoop`: check if a timer is due to fire and fire it if

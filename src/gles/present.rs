@@ -9,7 +9,24 @@
 use super::gles11_raw as gles11; // constants and types only
 use super::GLES;
 use crate::matrix::Matrix;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::{Duration, Instant};
+
+/// Last FPS measured by [FpsCounter] (as `f32` bits), read by the Android
+/// front-end's on-screen counter.
+pub static LAST_FPS: AtomicU32 = AtomicU32::new(0);
+/// Set by `--nearest-filter`: draw the final frame with sharp pixels.
+pub static NEAREST_FILTER: AtomicBool = AtomicBool::new(false);
+/// Set by `--frameskip=N`: present only 1 of every N+1 frames.
+pub static FRAMESKIP: AtomicU32 = AtomicU32::new(0);
+static FRAME_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+/// Whether this frame's presentation should be skipped (frame skip).
+/// The app still renders every frame; only the copy to the window is saved.
+pub fn should_skip_frame() -> bool {
+    let n = FRAMESKIP.load(Ordering::Relaxed);
+    n != 0 && FRAME_COUNTER.fetch_add(1, Ordering::Relaxed) % (n + 1) != 0
+}
 
 pub struct FpsCounter {
     time: std::time::Instant,
@@ -29,11 +46,9 @@ impl FpsCounter {
         let duration = now - self.time;
         if duration >= Duration::from_secs(1) {
             self.time = now;
-            echo!(
-                "touchHLE: {} FPS: {:.2}",
-                label,
-                std::mem::take(&mut self.frames) as f32 / duration.as_secs_f32()
-            );
+            let fps = std::mem::take(&mut self.frames) as f32 / duration.as_secs_f32();
+            LAST_FPS.store(fps.to_bits(), Ordering::Relaxed);
+            echo!("touchHLE: {} FPS: {:.2}", label, fps);
         }
     }
 }
@@ -56,6 +71,12 @@ pub unsafe fn present_frame(
     // so these need to be updated in tandem.
 
     use gles11::types::*;
+
+    if NEAREST_FILTER.load(Ordering::Relaxed) {
+        // The texture to present is bound already; the callers set LINEAR.
+        gles.TexParameteri(gles11::TEXTURE_2D, gles11::TEXTURE_MIN_FILTER, gles11::NEAREST as _);
+        gles.TexParameteri(gles11::TEXTURE_2D, gles11::TEXTURE_MAG_FILTER, gles11::NEAREST as _);
+    }
 
     // Draw the quad
     gles.Viewport(

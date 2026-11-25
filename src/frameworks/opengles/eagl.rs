@@ -277,6 +277,13 @@ pub const CLASSES: ClassExports = objc_classes! {
             .count_frame(format_args!("EAGLContext {this:?}"));
     }
 
+    if crate::gles::present::should_skip_frame() {
+        if let Some(sleep_for) = sleep_for {
+            env.sleep(sleep_for);
+        }
+        return true;
+    }
+
     let fullscreen_layer = find_fullscreen_eagl_layer(env);
 
     // Unclear from documentation if this method requires the context to be

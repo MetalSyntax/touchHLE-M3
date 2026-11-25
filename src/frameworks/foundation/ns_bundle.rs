@@ -371,7 +371,7 @@ pub const CLASSES: ClassExports = objc_classes! {
 
 };
 
-fn path_for_resource_helper(
+pub fn path_for_resource_helper(
     env: &mut Environment,
     bundle: id,
     name: id,

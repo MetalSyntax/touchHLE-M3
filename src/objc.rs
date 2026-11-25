@@ -63,6 +63,7 @@ use synchronization::{objc_sync_enter, objc_sync_exit};
 /// [fossil type]: https://en.wiktionary.org/wiki/fossil_word
 pub type NSZonePtr = crate::mem::MutVoidPtr;
 
+
 /// Main type holding Objective-C runtime state.
 pub struct ObjC {
     /// Known selectors (interned method name strings).
@@ -88,6 +89,12 @@ pub struct ObjC {
     /// Type information isn't part of the `objc_msgSend` ABI, so an alternative
     /// channel is needed.
     message_type_info: Option<(std::any::TypeId, &'static str)>,
+
+    /// Set once the app is terminating. Some apps (e.g. Inotia 2) release
+    /// already-freed objects in their shutdown path; real iOS doesn't notice,
+    /// so from then on such messages are logged and ignored instead of
+    /// panicking.
+    pub terminating: bool,
 }
 
 impl ObjC {
@@ -99,6 +106,7 @@ impl ObjC {
             sync_mutexes: HashMap::new(),
             initializer_threads: HashMap::new(),
             message_type_info: None,
+            terminating: false,
         }
     }
 }
